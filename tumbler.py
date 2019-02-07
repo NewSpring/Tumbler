@@ -1,5 +1,5 @@
 #! /usr/bin/python
-import report from zeroDollarReport as zReport
+from zeroDollarReport import report as zReport
 
 if __name__ == "__main__": 
     zReport()

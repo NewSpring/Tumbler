@@ -1,14 +1,21 @@
-import mssql from dbConnect
+import os
+from dotenv import load_dotenv
+from dbConnect import mssql
 
 query = """
 DECLARE @reportEndDate AS DATE = GETDATE();
 DECLARE @reportStartDate AS DATE = DATEADD(Month, -1, @reportEndDate);
 
+-- this is for the datepicker in Rock
+/*
 IF ISDATE(@StartDate) = 1 AND ISDATE(@EndDate) = 1
 BEGIN
     SELECT @reportEndDate = @EndDate;
     SELECT @reportStartDate = @StartDate;
 END
+*/
+
+SET NOCOUNT ON
 
 SELECT
     T.Id,
@@ -52,10 +59,19 @@ WHERE
 
 def report():
     """This will run the $0.00 Transaction Report and optionally fix all false transactions."""
-    cursor = mssql(SERVER, DB, USER, PW)
+
+    # get database credentials
+    load_dotenv()
+
+    server = os.getenv("ROCK_MSSQL_HOST")
+    db = os.getenv("ROCK_MSSQL_DB")
+    user = os.getenv("ROCK_MSSQL_USER")
+    pw = os.getenv("ROCK_MSSQL_PW")
+    cursor = mssql(server, db, user, pw)
+
     #Sample select query
-    cursor.execute("SELECT @@version;")
+    cursor.execute(query)
     row = cursor.fetchone()
     while row:
-        print row[0]
+        print(row[0])
         row = cursor.fetchone()

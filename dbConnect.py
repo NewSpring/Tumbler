@@ -1,3 +1,4 @@
+# NOTE: you need to install the ODBC Driver for this import statement to work
 import pyodbc
 import dotenv
 
