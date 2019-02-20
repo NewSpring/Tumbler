@@ -29,17 +29,19 @@ def _cloneRock(rockDir):
 
     # clone Rock if it doesn't exist in the current directory
     if os.path.exists(rockDir):
-        return False
+        return 0
     print("Cloning into " + rockDir + " directory...")
     os.system("git clone https://github.com/NewSpring/Rock.git " + rockDir)
-    return True
+    return 1
 
 
-def _cleanup(deleteRepo=False):
+def _cleanup(deleteRepo):
 
     # delete the Rock repo
     if deleteRepo:
         os.system("rm -rf Rock")
+
+    # delete the local and remote branches
     os.system("git push --delete origin sync-pre-alpha")
     os.system("git checkout alpha")
     os.system("git branch -D sync-pre-alpha")
@@ -63,16 +65,28 @@ def _createPreAlpha(rockDir):
         "git checkout -b sync-pre-alpha SparkDevNetwork/pre-alpha-release")
 
 
+def _getSHA():
+
+    # this will return the last commit SHA-1 hash
+    return os.popen("git rev-parse --short HEAD").read().strip("\n")
+
+
 def _merge(destination, source):
 
     # checkout destination branch
     os.system("git checkout {}".format(destination))
     os.system("git pull")
+    commit = _getSHA()
     # merge alpha into pre-alpha branch
     os.system("git merge --no-ff {} -m \"Merge from NewSpring/{}\"".format(
         source, source))
+    # if the commit hash didn't change, that means the merge failed
+    if commit == _getSHA():
+        print("Merge failed. Check for conflicts")
+        return 1
     # push pre alpha branch
     os.system("git push --set-upstream origin {}".format(destination))
+    return 0
 
 
 def _build(branch, authKey):
@@ -88,8 +102,31 @@ def _build(branch, authKey):
         "https://ci.appveyor.com/api/builds", data=data, headers=headers)
 
 
-def _buildSuccess(branch):
+def _buildCheck(branch):
 
+    # wait until the current commit is the one being built
+    commit = _getSHA()
+    buildCommit = ""
+    start = round(time.perf_counter())
+    while commit not in buildCommit:
+        elapsed = round(time.perf_counter()) - start
+        if elapsed > 30:
+            print("Timeout. {} not building.".format(branch))
+            return 1
+        print(
+            "\rVerifying correct AppVeyor build ({}s)...".format(elapsed),
+            end="")
+        r = requests.get(
+            "https://ci.appveyor.com/api/projects/NewSpring/rock/branch/{}".
+            format(branch))
+        buildCommit = json.loads(r.text)["build"]["commitId"]
+    print("\n")
+    return 0
+
+
+def _buildStatus(branch):
+
+    # wait on Appveyor build to pass or fail
     status = ""
     start = round(time.perf_counter())
     while status not in ["success", "fail"]:
@@ -100,9 +137,9 @@ def _buildSuccess(branch):
             format(branch))
         status = json.loads(r.text)["build"]["status"]
     print("\n")
-    if status == "success": return True
+    if status == "success": return 0
     print("Build failed. Debug {} branch and run again.".format(branch))
-    return False
+    return 1
 
 
 def _deploy(branch, envID, authKey):
@@ -126,25 +163,19 @@ def _deploy(branch, envID, authKey):
     print("Deployment to {} started.".format(envName))
 
 
-def _mergeAndDeploy(destination, source, triggerBuild, triggerDeploy):
+def _safeMerge(destination, source):
 
     # first merge destination branch into source so we can test the build
     _merge(source, destination)
 
-    # run appveyor build on source branch
-    if triggerBuild: _build(source, os.getenv("APPVEYOR_KEY"))
+    # run appveyor build on source branch if it's not automatic
+    if _buildCheck(source): _build(source, os.getenv("APPVEYOR_KEY"))
 
-    # check for status of build and wait until it completes
-    # NOTE: may need to wait a little to insure automatic build was triggered
-    if _buildSuccess(source):
+    # after build passes, we can safely merge
+    if not _buildStatus(source):
 
         # merge source into destination
         _merge(destination, source)
-
-        # deploy destination branch to the defined environment
-        if triggerDeploy:
-            _deploy(destination, os.getenv("APPVEYOR_ENV"),
-                    os.getenv("APPVEYOR_KEY"))
 
 
 def _pr(base, head):
@@ -175,14 +206,17 @@ def sync(rockDir="Rock", safe=False):
     _createPreAlpha(rockDir)
 
     # merge pre alpha into alpha after it builds successfully
-    _mergeAndDeploy("alpha", "sync-pre-alpha", True, False)
+    _safeMerge("alpha", "sync-pre-alpha")
 
     if safe:
         # create a PR instead of automatic deploy
         _pr("beta", "alpha")
     else:
         # merge alpha into beta
-        _mergeAndDeploy("beta", "alpha", False, True)
+        _safeMerge("beta", "alpha")
+
+        _deploy(destination, os.getenv("APPVEYOR_ENV"),
+                os.getenv("APPVEYOR_KEY"))
 
     # cleanup repo and stale branches
     _cleanup(deleteRepo)
