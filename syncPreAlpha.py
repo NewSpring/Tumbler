@@ -141,7 +141,7 @@ def _mergeAndDeploy(destination, source, triggerBuild, triggerDeploy):
         # merge source into destination
         _merge(destination, source)
 
-        # deploy
+        # deploy destination branch to the defined environment
         if triggerDeploy:
             _deploy(destination, os.getenv("APPVEYOR_ENV"),
                     os.getenv("APPVEYOR_KEY"))
@@ -188,4 +188,4 @@ def sync(rockDir="Rock", safe=False):
     _cleanup(deleteRepo)
 
 
-sync("/Users/michael.neeley/Documents/Projects/Rock")
+sync("/Users/michael.neeley/Documents/Projects/Rock", True)
