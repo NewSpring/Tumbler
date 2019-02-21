@@ -95,13 +95,25 @@ def _merge(destination, source):
     # merge source into destination branch
     os.system("git merge --no-ff {} -m \"Merge from NewSpring/{}\"".format(
         source, source))
-    # bail out if merge failed
-    if os.system("git merge --stat > /dev/null 2>&1"):
-        deletedBySource = os.popen(
-            "git diff --name-only --diff-filter=UD").read().split("\n")
-        print(deletedBySource)
-        print("Fix conflicts and run again.")
+
+    # loop over files that the source deleted
+    deletedBySource = os.popen(
+        "git diff --name-only --diff-filter=UD").read().split("\n")
+    for file in deletedBySource:
+        if not os.path.exists(file): continue
+        choice = input("Safe to delete '{}'? (y/n) ".format(file))
+        if choice.lower() not in ["y", "yes"]:
+            print("Fix conflicts manually and run again.")
+            return 1
+        os.system("git rm {}".format(file))
+
+    if os.popen("git diff --diff-filter=U").read() != "":
+        print("Some can't be resolved. Fix conflicts manually and run again.")
         return 1
+
+    # merge commit
+    os.system("git commit -am \"Merge conflicts resolved\"")
+
     # push destination branch
     os.system("git push --set-upstream origin {}".format(destination))
     return 0
