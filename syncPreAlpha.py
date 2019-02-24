@@ -5,6 +5,11 @@ import time
 import requests
 from dotenv import load_dotenv
 
+from tumblerLogging import logger as tumblerLogger
+
+# set logger
+logger = tumblerLogger
+
 
 def _validDir(directory):
     dirname = os.path.dirname(directory)
@@ -224,6 +229,8 @@ def _pr(base):
 def sync(rockDir="Rock", safeAlpha=False, safeBeta=False):
     """This will sync Rock pre-alpha with our alpha branch."""
 
+    logger.info("Syncing pre-alpha...")
+
     # load environment variables
     load_dotenv()
 
@@ -258,4 +265,4 @@ def sync(rockDir="Rock", safeAlpha=False, safeBeta=False):
     _cleanup(deleteRepo, deleteRemote)
 
 
-sync("/Users/michael.neeley/Documents/Projects/Rock", False, True)
+sync("/Users/michael.neeley/Documents/Projects/Rock", True, True)
