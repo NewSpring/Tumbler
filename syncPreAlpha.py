@@ -5,10 +5,7 @@ import time
 import requests
 from dotenv import load_dotenv
 
-from tumblerLogging import logger as tumblerLogger
-
-# set logger
-logger = tumblerLogger
+from tumblerLogging import logger
 
 
 def _validDir(directory):
