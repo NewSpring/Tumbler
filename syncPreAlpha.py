@@ -26,7 +26,7 @@ def _hubInstalled():
     # check for hub
     print("Checking for hub...")
     if os.system("which hub"):
-        print("Need to install hub to create PRs. Run `brew install hub`.")
+        logger.error("Need to install github/hub to create PRs.")
         return 1
     return 0
 
@@ -36,7 +36,6 @@ def _cloneRock(rockDir):
     # clone Rock if it doesn't exist in the current directory
     if os.path.exists(rockDir):
         return 0
-    print("Cloning into " + rockDir + " directory...")
     os.system("git clone https://github.com/NewSpring/Rock.git " + rockDir)
     return 1
 
@@ -48,10 +47,7 @@ def _checkout(branch):
     if "up to date" not in r: os.system("git pull")
 
 
-def _cleanup(deleteRepo, deleteRemote):
-
-    # delete the local Rock repo
-    if deleteRepo: os.system("rm -rf Rock")
+def _cleanup(deleteRemote=False):
 
     # delete the local and remote branches
     if deleteRemote: os.system("git push --delete origin sync-pre-alpha")
@@ -98,10 +94,15 @@ def _merge(destination, source):
     _checkout(destination)
 
     # merge source into destination branch
-    os.system("git merge --no-ff {} -m \"Merge from NewSpring/{}\"".format(
-        source, source))
+    if "up to date" in os.popen(
+            "git merge {} -m \"Merge from NewSpring/{}\"".format(
+                source, source)).read():
+        logger.info("No changes to sync")
+        return 1
 
     # loop over files that the source deleted
+    # TODO: don't need to ask about every file, just show them all
+    # and ask yes or no
     deletedBySource = os.popen(
         "git diff --name-only --diff-filter=UD").read().split("\n")
     for file in deletedBySource:
@@ -226,11 +227,11 @@ def _pr(base):
     return 0
 
 
-def sync(rockDir="Rock",
-         start="alpha",
-         end="beta",
+def sync(rockDir="/tmp/Rock",
+         alpha="alpha",
+         beta="beta",
          safeAlpha=False,
-         safeBeta=False):
+         safeBeta=True):
     """This will sync Rock pre-alpha with our alpha branch."""
 
     logger.info("Syncing pre-alpha...")
@@ -245,29 +246,28 @@ def sync(rockDir="Rock",
     if _hubInstalled(): return 1
 
     # if Rock doesn't exist, clone it and delete it later
-    deleteRepo = _cloneRock(rockDir)
+    _cloneRock(rockDir)
     deleteRemote = not safeAlpha
 
     # checkout alpha branch
     _createPreAlpha(rockDir)
 
     if safeAlpha:
-        if _pr(start): deleteRemote = True
+        if _pr(alpha): deleteRemote = True
     else:
         # merge pre alpha into alpha after it builds successfully
-        if _safeMerge(start, "sync-pre-alpha"): return 1
+        if _safeMerge(alpha, "sync-pre-alpha"): return 1
 
         if safeBeta:
-            _pr(end)
+            _pr(beta)
         else:
-            if _safeMerge(end, start): return 1
+            if _safeMerge(beta, alpha): return 1
             _deploy(destination, os.getenv("APPVEYOR_ENV"),
                     os.getenv("APPVEYOR_KEY"))
 
     # cleanup repo and stale branches
-    _checkout(start)
-    _cleanup(deleteRepo, deleteRemote)
+    _checkout(alpha)
+    _cleanup(deleteRemote)
 
 
-sync("/Users/michael.neeley/Documents/Projects/Rock", "alpha", "beta", True,
-     True)
+# sync("/Users/michael.neeley/Documents/Projects/Rock", "alpha", "beta", True, True)
