@@ -226,7 +226,11 @@ def _pr(base):
     return 0
 
 
-def sync(rockDir="Rock", safeAlpha=False, safeBeta=False):
+def sync(rockDir="Rock",
+         start="alpha",
+         end="beta",
+         safeAlpha=False,
+         safeBeta=False):
     """This will sync Rock pre-alpha with our alpha branch."""
 
     logger.info("Syncing pre-alpha...")
@@ -248,21 +252,22 @@ def sync(rockDir="Rock", safeAlpha=False, safeBeta=False):
     _createPreAlpha(rockDir)
 
     if safeAlpha:
-        if _pr("alphaTest"): deleteRemote = True
+        if _pr(start): deleteRemote = True
     else:
         # merge pre alpha into alpha after it builds successfully
-        if _safeMerge("alphaTest", "sync-pre-alpha"): return 1
+        if _safeMerge(start, "sync-pre-alpha"): return 1
 
         if safeBeta:
-            _pr("beta")
+            _pr(end)
         else:
-            if _safeMerge("beta", "alphaTest"): return 1
+            if _safeMerge(end, start): return 1
             _deploy(destination, os.getenv("APPVEYOR_ENV"),
                     os.getenv("APPVEYOR_KEY"))
 
     # cleanup repo and stale branches
-    _checkout("alphaTest")
+    _checkout(start)
     _cleanup(deleteRepo, deleteRemote)
 
 
-sync("/Users/michael.neeley/Documents/Projects/Rock", True, True)
+sync("/Users/michael.neeley/Documents/Projects/Rock", "alpha", "beta", True,
+     True)
