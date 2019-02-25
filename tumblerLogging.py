@@ -9,6 +9,5 @@ def getLogger(name=""):
 
     with open("logging.yaml") as f:
         config = yaml.safe_load(f)
-
     logging.config.dictConfig(config)
     return logging.getLogger("tumbler")

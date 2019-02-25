@@ -17,7 +17,12 @@ def _getArgs():
         help="Runs the Zero Dollar Transaction Report",
         action="store_true")
     parser.add_argument(
-        "--sync", help="Syncs Rock pre-alpha", action="store_true")
+        "--sync",
+        help=
+        "Syncs Rock pre-alpha. In safe mode, will do an Alpha PR and stop. In fast mode, will merge and deploy beta automatically.",
+        action="store_true")
+    parser.add_argument(
+        "--safe", help="Turns on safe mode", action="store_true")
     args = parser.parse_args()
     return args
 
@@ -31,4 +36,4 @@ if __name__ == "__main__":
     if args.zero: zReport()
 
     # Sync pre alpha
-    if args.sync: sync()
+    if args.sync: sync(safe=args.safe)

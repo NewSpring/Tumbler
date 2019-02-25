@@ -15,11 +15,11 @@ handlers:
         formatter: default
         level: INFO
         filename: tumbler.log
-        maxBytes: 1024
+        maxBytes: 10240
         backupCount: 3
-loggers:
+logger:
     tumbler:
-        handlers: [console, file]
+        handlers: [console, file, email]
         propagate: no
 root:
     level: DEBUG

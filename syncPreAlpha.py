@@ -16,7 +16,7 @@ logger = getLogger()
 def _validDir(directory):
     dirname = os.path.dirname(directory)
     if not os.path.exists(dirname):
-        print(
+        logger.error(
             "Not a valid directory name, make sure you're not using ~ or any shorthand"
         )
         return 1
@@ -26,7 +26,7 @@ def _validDir(directory):
 def _hubInstalled():
 
     # check for hub
-    logger.info("Checking for hub...")
+    logger.info("Checking for hub")
     if os.system("which hub"):
         logger.error("Need to install github/hub to create PRs.")
         return 1
@@ -36,15 +36,17 @@ def _hubInstalled():
 def _cloneRock(rockDir):
 
     # clone Rock if it doesn't exist in the current directory
-    if os.path.exists(rockDir):
-        return 0
-    os.system("git clone https://github.com/NewSpring/Rock.git " + rockDir)
-    return 1
+    if not os.path.exists(rockDir):
+        os.system("git clone https://github.com/NewSpring/Rock.git " + rockDir)
+
+    # switch to Rock directory
+    os.chdir(rockDir)
 
 
 def _checkout(branch):
 
     # checkout and update branch
+    logger.info("Updating {} branch".format(branch))
     r = os.popen("git checkout {}".format(branch)).read()
     if "up to date" not in r: os.system("git pull")
 
@@ -57,25 +59,27 @@ def _cleanup(deleteRemote=True):
     os.system("git branch -D sync-pre-alpha")
 
 
-def _createPreAlpha(rockDir):
-
-    # switch to Rock directory
-    os.chdir(rockDir)
+def _createPreAlpha():
 
     # get Spark remote branches
     if "SparkDevNetwork" not in os.popen("git remote").read():
         # set up Spark as remote
+        logger.info("Adding Spark remote")
         os.system(
             "git remote add SparkDevNetwork https://github.com/SparkDevNetwork/Rock.git"
         )
-    os.system("git fetch SparkDevNetwork")
+    # os.system("git fetch SparkDevNetwork")
 
-    # create pre-alpha branch from spark off of NewSpring alpha
+    # if sync-pre-alpha doesn't exist, create it
     if "sync-pre-alpha" not in os.popen("git branch").read():
+        logger.info("Creating new sync-pre-alpha from Spark")
         os.system(
-            "git checkout -b sync-pre-alpha SparkDevNetwork/pre-alpha-release")
+            "git checkout -B sync-pre-alpha SparkDevNetwork/pre-alpha-release")
 
     # push pre alpha branch
+    logger.info("Deleting remote sync-pre-alpha")
+    os.system("git push --delete origin sync-pre-alpha")
+    logger.info("Pushing sync-pre-alpha")
     os.system("git push --set-upstream origin sync-pre-alpha")
 
 
@@ -96,36 +100,47 @@ def _merge(destination, source):
     _checkout(source)
     _checkout(destination)
 
-    # merge source into destination branch
+    # check for changes
+    logger.info("Merging {} -> {}".format(source, destination))
     if "up to date" in os.popen(
             "git merge {} -m \"Merge from NewSpring/{}\"".format(
                 source, source)).read():
         logger.info("No changes to sync")
-        return 1
 
-    # loop over files that the source deleted
-    # TODO: don't need to ask about every file, just show them all
-    # and ask yes or no
-    deletedBySource = os.popen(
-        "git diff --name-only --diff-filter=UD").read().split("\n")
-    for file in deletedBySource:
-        if not os.path.exists(file): continue
-        choice = input("Safe to delete '{}'? (y/n) ".format(file))
-        if choice.lower() not in ["y", "yes"]:
-            print("Fix conflicts manually and run again.")
+    # merge source into destination
+    else:
+
+        # check for files to safely delete
+        conflicts = False
+        deletedBySource = os.popen(
+            "git diff --name-only --diff-filter=UD").read().split("\n")
+        logger.debug(deletedBySource)
+        if deletedBySource != [""]:
+            conflicts = True
+            for file in deletedBySource:
+                if not os.path.exists(file): continue
+                logger.info("{}".format(file))
+            choice = input("Safe to delete files? (y/n) ")
+            if choice.lower() not in ["y", "yes"]:
+                logger.info("Fix conflicts manually")
+                return 1
+            logger.info("Deleting files...")
+            for file in deletedBySource:
+                os.system("git rm {}".format(file))
+
+        # run check again
+        if os.popen("git diff --diff-filter=U").read() != "":
+            logger.warning("Some can't be resolved. Fix conflicts manually.")
             return 1
-        os.system("git rm {}".format(file))
 
-    if os.popen("git diff --diff-filter=U").read() != "":
-        print("Some can't be resolved. Fix conflicts manually and run again.")
-        return 1
-
-    # merge commit
-    os.system("git commit -am \"Merge conflicts resolved\"")
+        # merge commit
+        if conflicts:
+            logger.info("Committing merge conflict resolution")
+            os.system("git commit -am \"Merge conflicts resolved\"")
 
     # push destination branch
+    logger.info("Pushing {} branch".format(destination))
     os.system("git push --set-upstream origin {}".format(destination))
-    return 0
 
 
 def _build(branch, authKey):
@@ -150,16 +165,22 @@ def _buildCheck(branch):
     while commit not in buildCommit:
         elapsed = round(time.perf_counter()) - start
         if elapsed > 30:
-            print("\nTimeout. Branch '{}' not building.".format(branch))
+            logger.warning(
+                "\nTimeout. Branch '{}' not building.".format(branch))
             return 1
         print(
-            "\rVerifying automatic AppVeyor build ({}s)...".format(elapsed),
+            "\rVerifying automatic AppVeyor build ({}s)".format(elapsed),
             end="")
         r = requests.get(
             "https://ci.appveyor.com/api/projects/NewSpring/rock/branch/{}".
             format(branch))
-        buildCommit = json.loads(r.text)["build"]["commitId"]
+        try:
+            buildCommit = json.loads(r.text)["build"]["commitId"]
+        except KeyError:
+            logger.warning("\nBranch not found.")
+            return 1
     print("")
+    logger.info("Current commit is building or has already been built")
     return 0
 
 
@@ -170,14 +191,16 @@ def _buildStatus(branch):
     start = round(time.perf_counter())
     while status not in ["success", "failed"]:
         elapsed = round(time.perf_counter()) - start
-        print("\rWaiting on AppVeyor build ({}s)...".format(elapsed), end="")
+        print("\rWaiting on AppVeyor build ({}s)".format(elapsed), end="")
         r = requests.get(
             "https://ci.appveyor.com/api/projects/NewSpring/rock/branch/{}".
             format(branch))
         status = json.loads(r.text)["build"]["status"]
     print("")
-    if status == "success": return 0
-    print("Build failed. Debug {} branch and run again.".format(branch))
+    if status == "success":
+        logger.info("{} branch build passed".format(branch))
+        return 0
+    logger.error("Build failed. Debug {} branch and run again.".format(branch))
     return 1
 
 
@@ -199,7 +222,16 @@ def _deploy(branch, envID, authKey):
     }
     r = requests.post(
         "https://ci.appveyor.com/api/deployments", data=data, headers=headers)
-    print("Deployment to {} started.".format(envName))
+    logger.info("Deploying branch {} to {} started.".format(branch, envName))
+
+
+def _appveyorBuild(branch):
+
+    # run appveyor build on source branch if it's not automatic
+    if _buildCheck(branch): _build(branch, os.getenv("APPVEYOR_KEY"))
+
+    # after build passes, we can safely merge
+    if _buildStatus(branch): return 1
 
 
 def _safeMerge(destination, source):
@@ -207,36 +239,35 @@ def _safeMerge(destination, source):
     # first merge destination branch into source so we can test the build
     if _merge(source, destination): return 1
 
-    # run appveyor build on source branch if it's not automatic
-    if _buildCheck(source): _build(source, os.getenv("APPVEYOR_KEY"))
-
-    # after build passes, we can safely merge
-    if _buildStatus(source): return 1
+    # run appveyor build on source branch
+    if _appveyorBuild(source): return 1
 
     # merge source into destination
     if _merge(destination, source): return 1
 
+    # run appveyor build on destination branch
+    if _appveyorBuild(destination): return 1
 
-def _pr(base):
 
-    head = _getBranch()
+def _pr(base, head):
+
+    _checkout(head)
     if os.system(
             "hub pull-request -b {} -m \"Merge from NewSpring/{}\"".format(
                 base, head)):
+        logger.error("Could not complete pull request")
         return 1
-    print("Created {} -> {} PR. Ready to merge and deploy {} manually.".format(
-        head, base, base))
-    return 0
+    logger.info(
+        "Created {} -> {} PR. Ready to merge and deploy {} manually.".format(
+            head, base, base))
 
 
-def sync(rockDir="/tmp/Rock",
-         alpha="test",
-         beta="beta",
-         prAlpha=False,
-         prBeta=True):
+def sync(rockDir="/tmp/Rock", safe=True, fast=False):
     """This will sync Rock pre-alpha with our alpha branch."""
 
-    logger.info("Syncing pre-alpha...")
+    logger.info("*****************")
+    logger.info("Syncing pre-alpha")
+    logger.info("*****************")
 
     # load environment variables
     load_dotenv()
@@ -247,33 +278,31 @@ def sync(rockDir="/tmp/Rock",
     # check that hub is installed
     if _hubInstalled(): return 1
 
-    # if Rock doesn't exist, clone it and delete it later
+    # if Rock doesn't exist, clone it
     _cloneRock(rockDir)
 
     # checkout alpha branch
-    _createPreAlpha(rockDir)
+    _createPreAlpha()
 
     # stopping at alpha PR
-    if prAlpha:
+    if safe:
         # if making the PR fails, delete the remote branch too
-        if _pr(alpha):
-            _cleanup()
+        if _pr("alpha", "sync-pre-alpha"):
+            # _cleanup()
             return 1
-        # if alpha PR was successful, don't delete the remote branch
     else:
         # merge pre alpha into alpha after it builds successfully
-        if _safeMerge(alpha, "sync-pre-alpha"): return 1
-        # TODO: when it returns 1 due to no changes necessary, doesn't run cleanup
+        if _safeMerge("alpha", "sync-pre-alpha"): return 1
 
-        if prBeta:
-            _pr(beta)
-        else:
-            if _safeMerge(beta, alpha): return 1
+        if fast:
+            if _safeMerge("beta", "alpha"): return 1
             _deploy(destination, os.getenv("APPVEYOR_ENV"),
                     os.getenv("APPVEYOR_KEY"))
+        else:
+            _pr("beta", "alpha")
 
     # if alpha was made, don't delete remote pre-alpha branch
-    _cleanup(not prAlpha)
+    # _cleanup(not prAlpha)
 
 
 # sync("/Users/michael.neeley/Documents/Projects/Rock", "alpha", "beta", True, True)
