@@ -212,7 +212,7 @@ def _safeMerge(destination, source):
     if _buildStatus(source): return 1
 
     # merge source into destination
-    _merge(destination, source)
+    if _merge(destination, source): return 1
 
 
 def _pr(base):
