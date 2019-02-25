@@ -10,6 +10,8 @@ from tumblerLogging import getLogger
 # get custom logger
 logger = getLogger()
 
+#TODO: don't show all os.system calls, instead only in logger
+
 
 def _validDir(directory):
     dirname = os.path.dirname(directory)
