@@ -263,6 +263,7 @@ def sync(rockDir="/tmp/Rock",
     else:
         # merge pre alpha into alpha after it builds successfully
         if _safeMerge(alpha, "sync-pre-alpha"): return 1
+        # TODO: when it's return 1 due to no changes necessary, doesn't run cleanup
 
         if prBeta:
             _pr(beta)
