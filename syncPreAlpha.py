@@ -24,7 +24,7 @@ def _validDir(directory):
 def _hubInstalled():
 
     # check for hub
-    print("Checking for hub...")
+    logger.info("Checking for hub...")
     if os.system("which hub"):
         logger.error("Need to install github/hub to create PRs.")
         return 1
@@ -47,9 +47,10 @@ def _checkout(branch):
     if "up to date" not in r: os.system("git pull")
 
 
-def _cleanup(deleteRemote=False):
+def _cleanup(deleteRemote=True):
 
     # delete the local and remote branches
+    _checkout("master")
     if deleteRemote: os.system("git push --delete origin sync-pre-alpha")
     os.system("git branch -D sync-pre-alpha")
 
@@ -212,7 +213,6 @@ def _safeMerge(destination, source):
 
     # merge source into destination
     _merge(destination, source)
-    return 0
 
 
 def _pr(base):
@@ -230,8 +230,8 @@ def _pr(base):
 def sync(rockDir="/tmp/Rock",
          alpha="alpha",
          beta="beta",
-         safeAlpha=False,
-         safeBeta=True):
+         prAlpha=False,
+         prBeta=True):
     """This will sync Rock pre-alpha with our alpha branch."""
 
     logger.info("Syncing pre-alpha...")
@@ -247,27 +247,30 @@ def sync(rockDir="/tmp/Rock",
 
     # if Rock doesn't exist, clone it and delete it later
     _cloneRock(rockDir)
-    deleteRemote = not safeAlpha
 
     # checkout alpha branch
     _createPreAlpha(rockDir)
 
-    if safeAlpha:
-        if _pr(alpha): deleteRemote = True
+    # stopping at alpha PR
+    if prAlpha:
+        # if making the PR fails, delete the remote branch too
+        if _pr(alpha):
+            _cleanup()
+            return 1
+        # if alpha PR was successful, don't delete the remote branch
     else:
         # merge pre alpha into alpha after it builds successfully
         if _safeMerge(alpha, "sync-pre-alpha"): return 1
 
-        if safeBeta:
+        if prBeta:
             _pr(beta)
         else:
             if _safeMerge(beta, alpha): return 1
             _deploy(destination, os.getenv("APPVEYOR_ENV"),
                     os.getenv("APPVEYOR_KEY"))
 
-    # cleanup repo and stale branches
-    _checkout(alpha)
-    _cleanup(deleteRemote)
+    # if alpha was made, don't delete remote pre-alpha branch
+    _cleanup(not prAlpha)
 
 
 # sync("/Users/michael.neeley/Documents/Projects/Rock", "alpha", "beta", True, True)
