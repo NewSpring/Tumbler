@@ -159,7 +159,7 @@ def _buildCheck(branch):
             "https://ci.appveyor.com/api/projects/NewSpring/rock/branch/{}".
             format(branch))
         buildCommit = json.loads(r.text)["build"]["commitId"]
-    print("\n")
+    print("")
     return 0
 
 
@@ -175,7 +175,7 @@ def _buildStatus(branch):
             "https://ci.appveyor.com/api/projects/NewSpring/rock/branch/{}".
             format(branch))
         status = json.loads(r.text)["build"]["status"]
-    print("\n")
+    print("")
     if status == "success": return 0
     print("Build failed. Debug {} branch and run again.".format(branch))
     return 1
@@ -230,7 +230,7 @@ def _pr(base):
 
 
 def sync(rockDir="/tmp/Rock",
-         alpha="alpha",
+         alpha="test",
          beta="beta",
          prAlpha=False,
          prBeta=True):
@@ -263,7 +263,7 @@ def sync(rockDir="/tmp/Rock",
     else:
         # merge pre alpha into alpha after it builds successfully
         if _safeMerge(alpha, "sync-pre-alpha"): return 1
-        # TODO: when it's return 1 due to no changes necessary, doesn't run cleanup
+        # TODO: when it returns 1 due to no changes necessary, doesn't run cleanup
 
         if prBeta:
             _pr(beta)
