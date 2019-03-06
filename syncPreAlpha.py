@@ -42,6 +42,11 @@ def _cloneRock(rockDir):
     # switch to Rock directory
     os.chdir(rockDir)
 
+    # check that it is a git directory
+    if os.popen("echo $GIT_DIR").read() == "":
+        logger.error("Not a valid git directory")
+        return 1
+
 
 def _checkout(branch):
 
@@ -279,7 +284,7 @@ def sync(rockDir="/tmp/Rock", safe=True, fast=False):
     if _hubInstalled(): return 1
 
     # if Rock doesn't exist, clone it
-    _cloneRock(rockDir)
+    if _cloneRock(rockDir): return 1
 
     # checkout alpha branch
     _createPreAlpha()
