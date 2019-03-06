@@ -68,7 +68,7 @@ def _createPreAlpha():
         os.system(
             "git remote add SparkDevNetwork https://github.com/SparkDevNetwork/Rock.git"
         )
-    # os.system("git fetch SparkDevNetwork")
+    os.system("git fetch SparkDevNetwork")
 
     # if sync-pre-alpha doesn't exist, create it
     if "sync-pre-alpha" not in os.popen("git branch").read():
