@@ -161,7 +161,7 @@ def _build(branch, authKey):
         "https://ci.appveyor.com/api/builds", data=data, headers=headers)
 
 
-def _buildCheck(branch):
+def _buildingCheck(branch):
 
     # wait until the current commit is the one being built
     commit = _getSHA()
@@ -206,34 +206,52 @@ def _buildStatus(branch):
         logger.info("{} branch build passed".format(branch))
         return 0
     logger.error("Build failed. Debug {} branch and run again.".format(branch))
-    return 1
+    return -1
 
 
-def _deploy(branch, envID, authKey):
+def _getBuildVersion(branch, authKey):
 
+    headers = {"Authorization": "Bearer {}".format(authKey)}
+    r = requests.get(
+        "https://ci.appveyor.com/api/projects/NewSpring/rock/branch/{}".format(
+            branch),
+        headers=headers)
+    logger.debug(f"Build version response: {r}")
+    return json.loads(r.text)["build"]["version"]
+
+
+def _deploy(branch, version, envID, authKey):
+
+    logger.debug(f"envID: {envID}")
+    logger.debug(f"authKey: {authKey}")
     # get Appveyor environment name
     headers = {"Authorization": "Bearer {}".format(authKey)}
     r = requests.get(
-        "https://ci.appveyor.com/api/environments/{}/deployments".format(
-            envID),
+        "https://ci.appveyor.com/api/environments/{}/settings".format(envID),
         headers=headers)
+    logger.debug(r.text)
     envName = json.loads(r.text)["environment"]["name"]
 
     # make POST request to trigger deployment
     data = {
         "environmentName": envName,
         "accountName": "NewSpring",
-        "projectSlug": "rock"
+        "projectSlug": "rock",
+        "buildVersion": version,
+        "environmentVariables": {
+            "application_path": "D:\wwwroot"
+        },
     }
     r = requests.post(
         "https://ci.appveyor.com/api/deployments", data=data, headers=headers)
     logger.info("Deploying branch {} to {} started.".format(branch, envName))
+    logger.debug(r.text)
 
 
 def _appveyorBuild(branch):
 
     # run appveyor build on source branch if it's not automatic
-    if _buildCheck(branch): _build(branch, os.getenv("APPVEYOR_KEY"))
+    if _buildingCheck(branch): _build(branch, os.getenv("APPVEYOR_KEY"))
 
     # after build passes, we can safely merge
     if _buildStatus(branch): return 1
@@ -301,13 +319,11 @@ def sync(rockDir="/tmp/Rock", safe=True, fast=False):
 
         if fast:
             if _safeMerge("beta", "alpha"): return 1
-            _deploy(destination, os.getenv("APPVEYOR_ENV"),
-                    os.getenv("APPVEYOR_KEY"))
+            _deploy(destination,
+                    _getBuildVersion(destination, os.getenv("APPVEYOR_KEY")),
+                    os.getenv("APPVEYOR_BETA_ENV"), os.getenv("APPVEYOR_KEY"))
         else:
             _pr("beta", "alpha")
 
     # if alpha was made, don't delete remote pre-alpha branch
     # _cleanup(not prAlpha)
-
-
-# sync("/Users/michael.neeley/Documents/Projects/Rock", "alpha", "beta", True, True)
