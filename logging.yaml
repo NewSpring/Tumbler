@@ -19,7 +19,7 @@ handlers:
         backupCount: 3
 logger:
     tumbler:
-        handlers: [console, file, email]
+        handlers: [console, file]
         propagate: no
 root:
     level: DEBUG

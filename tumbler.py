@@ -33,7 +33,7 @@ if __name__ == "__main__":
     args = _getArgs()
 
     # $0 transaction report
-    if args.zero: zReport()
+    if args.zero: zReport(safe=args.safe)
 
     # Sync pre alpha
     if args.sync: sync(safe=args.safe)
