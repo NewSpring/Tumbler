@@ -1,6 +1,7 @@
-pyodbc
-python-dotenv
-yapf
-isort
-requests
-PyYAML
+black==18.9b0
+isort==4.3.4
+pyodbc==4.0.25
+python-dotenv==0.10.1
+PyYAML==3.13
+requests==2.21.0
+yapf==0.26.0
