@@ -1,6 +1,7 @@
 #! /usr/bin/python
 import argparse
 
+from flushCache import flush
 from syncPreAlpha import sync
 from zeroDollarReport import report as zReport
 
@@ -22,6 +23,8 @@ def _getArgs():
         "Syncs Rock pre-alpha. In safe mode, will do an Alpha PR and stop. In fast mode, will merge and deploy beta automatically.",
         action="store_true")
     parser.add_argument(
+        "--flush", help="Flushes the Heighliner cache.", action="store_true")
+    parser.add_argument(
         "--safe", help="Turns on safe mode", action="store_true")
     args = parser.parse_args()
     return args
@@ -37,3 +40,6 @@ if __name__ == "__main__":
 
     # Sync pre alpha
     if args.sync: sync(safe=args.safe)
+
+    # flush Heighliner cache
+    if args.flush: flush()
