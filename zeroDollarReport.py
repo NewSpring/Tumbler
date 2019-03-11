@@ -8,6 +8,8 @@ from tumblerLogging import getLogger
 # get custom logger
 logger = getLogger()
 
+# TODO: switch this over to using the REST API
+
 
 def reportQuery(months=1):
     """This will select the ids the false transactions."""
