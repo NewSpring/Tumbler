@@ -372,9 +372,12 @@ def report(start=1):
 
     # get list of missing Rock txns
     missingIDs = nmiTxns - rockTxns
+
+    # sync transactions using graphQL
     # gqlResponses = list(map(lambda x: _syncTxn(x), missingIDs))
     # logger.debug(gqlResponses)
 
+    # NOTE: only needed if we stop using graphQL to sync txns
     # double check that txns don't exist, dates may not have exactly lined up
     # missingIDs = set(
     # filter(lambda x: not _isRockTxn(x, rockAPI, rockToken), missingIDs)
