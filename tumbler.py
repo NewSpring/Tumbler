@@ -24,6 +24,7 @@ def _getArgs():
         "--flush", help="Flushes the Heighliner cache.", action="store_true"
     )
     parser.add_argument("--safe", help="Turns on safe mode", action="store_true")
+    parser.add_argument("--fast", help="Turns on fast mode", action="store_true")
     args = parser.parse_args()
     return args
 
@@ -39,7 +40,7 @@ if __name__ == "__main__":
 
     # Sync pre alpha
     if args.sync:
-        sync(safe=args.safe)
+        sync(safe=args.safe, fast=args.fast)
 
     # flush Heighliner cache
     if args.flush:
