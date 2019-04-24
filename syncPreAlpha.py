@@ -1,5 +1,6 @@
 import json
 import os
+import pdb
 import time
 
 import requests
@@ -9,6 +10,7 @@ from tumblerLogging import getLogger
 
 # get custom logger
 logger = getLogger()
+
 
 # TODO: don't show all os.system calls, instead only in logger
 
@@ -43,8 +45,10 @@ def _cloneRock(rockDir):
     os.chdir(rockDir)
 
     # check that it is a git directory
-    if os.popen("echo $GIT_DIR").read() == "":
-        logger.error("Not a valid git directory")
+    if "true" not in os.popen("git rev-parse --is-inside-work-tree").read():
+        logger.error(
+            "Directory is not valid or is corrupt. May need to delete and retry."
+        )
         return 1
 
 
@@ -78,9 +82,10 @@ def _createPreAlpha():
     os.system("git fetch SparkDevNetwork")
 
     # if sync-pre-alpha doesn't exist, create it
-    if "sync-pre-alpha" not in os.popen("git branch").read():
-        logger.info("Creating new sync-pre-alpha from Spark")
-        os.system("git checkout -B sync-pre-alpha SparkDevNetwork/pre-alpha-release")
+    # if "sync-pre-alpha" not in os.popen("git branch").read():
+    logger.info("Creating new sync-pre-alpha from Spark")
+    os.system(
+        "git checkout -B sync-pre-alpha SparkDevNetwork/pre-alpha-release")
 
     # push pre alpha branch
     logger.info("Deleting remote sync-pre-alpha")
@@ -108,12 +113,9 @@ def _merge(destination, source):
 
     # check for changes
     logger.info("Merging {} -> {}".format(source, destination))
-    if (
-        "up to date"
-        in os.popen(
-            'git merge {} -m "Merge from NewSpring/{}"'.format(source, source)
-        ).read()
-    ):
+    if ("up to date" in os.popen(
+            'git merge {} -m "Merge from NewSpring/{}"'.format(
+                source, source)).read()):
         logger.info("No changes to sync")
 
     # merge source into destination
@@ -121,9 +123,8 @@ def _merge(destination, source):
 
         # check for files to safely delete
         conflicts = False
-        deletedBySource = (
-            os.popen("git diff --name-only --diff-filter=UD").read().split("\n")
-        )
+        deletedBySource = (os.popen(
+            "git diff --name-only --diff-filter=UD").read().split("\n"))
         logger.debug(deletedBySource)
         if deletedBySource != [""]:
             conflicts = True
@@ -157,9 +158,14 @@ def _merge(destination, source):
 def _build(branch, authKey):
 
     # POST request to start appveyor build
-    data = {"accountName": "NewSpring", "projectSlug": "rock", "branch": branch}
+    data = {
+        "accountName": "NewSpring",
+        "projectSlug": "rock",
+        "branch": branch
+    }
     headers = {"Authorization": "Bearer " + authKey}
-    r = requests.post("https://ci.appveyor.com/api/builds", data=data, headers=headers)
+    r = requests.post(
+        "https://ci.appveyor.com/api/builds", data=data, headers=headers)
 
 
 def _buildingCheck(branch):
@@ -171,14 +177,15 @@ def _buildingCheck(branch):
     while commit not in buildCommit:
         elapsed = round(time.perf_counter()) - start
         if elapsed > 30:
-            logger.warning("\nTimeout. Branch '{}' not building.".format(branch))
+            logger.warning(
+                "\nTimeout. Branch '{}' not building.".format(branch))
             return 1
-        print("\rVerifying automatic AppVeyor build ({}s)".format(elapsed), end="")
+        print(
+            "\rVerifying automatic AppVeyor build ({}s)".format(elapsed),
+            end="")
         r = requests.get(
-            "https://ci.appveyor.com/api/projects/NewSpring/rock/branch/{}".format(
-                branch
-            )
-        )
+            "https://ci.appveyor.com/api/projects/NewSpring/rock/branch/{}".
+            format(branch))
         try:
             buildCommit = json.loads(r.text)["build"]["commitId"]
         except KeyError:
@@ -198,10 +205,8 @@ def _buildStatus(branch):
         elapsed = round(time.perf_counter()) - start
         print("\rWaiting on AppVeyor build ({}s)".format(elapsed), end="")
         r = requests.get(
-            "https://ci.appveyor.com/api/projects/NewSpring/rock/branch/{}".format(
-                branch
-            )
-        )
+            "https://ci.appveyor.com/api/projects/NewSpring/rock/branch/{}".
+            format(branch))
         status = json.loads(r.text)["build"]["status"]
     print("")
     if status == "success":
@@ -215,7 +220,8 @@ def _getBuildVersion(branch, authKey):
 
     headers = {"Authorization": "Bearer {}".format(authKey)}
     r = requests.get(
-        "https://ci.appveyor.com/api/projects/NewSpring/rock/branch/{}".format(branch),
+        "https://ci.appveyor.com/api/projects/NewSpring/rock/branch/{}".format(
+            branch),
         headers=headers,
     )
     logger.debug(f"Build version response: {r}")
@@ -241,11 +247,12 @@ def _deploy(branch, version, envID, authKey):
         "accountName": "NewSpring",
         "projectSlug": "rock",
         "buildVersion": version,
-        "environmentVariables": {"application_path": "D:\wwwroot"},
+        "environmentVariables": {
+            "application_path": "D:\wwwroot"
+        },
     }
     r = requests.post(
-        "https://ci.appveyor.com/api/deployments", data=data, headers=headers
-    )
+        "https://ci.appveyor.com/api/deployments", data=data, headers=headers)
     logger.info("Deploying branch {} to {} started.".format(branch, envName))
     logger.debug(r.text)
 
@@ -283,16 +290,13 @@ def _safeMerge(destination, source):
 def _pr(base, head):
 
     _checkout(head)
-    if os.system(
-        'hub pull-request -b {} -m "Merge from NewSpring/{}"'.format(base, head)
-    ):
+    if os.system('hub pull-request -b {} -m "Merge from NewSpring/{}"'.format(
+            base, head)):
         logger.error("Could not complete pull request")
         return 1
     logger.info(
         "Created {} -> {} PR. Ready to merge and deploy {} manually.".format(
-            head, base, base
-        )
-    )
+            head, base, base))
 
 
 def sync(rockDir="/tmp/Rock", safe=True, fast=False):

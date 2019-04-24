@@ -4,7 +4,7 @@ import logging.config
 import yaml
 
 
-def getLogger(name=""):
+def getLogger():
     """This will return a logger based on logging.yaml."""
 
     with open("logging.yaml") as f:
